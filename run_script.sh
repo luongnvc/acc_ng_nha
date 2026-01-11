@@ -11,9 +11,19 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENC_PY="$SCRIPT_DIR/enc.py"
+
+# Định nghĩa các file key (chứa danh sách key)
 KEY_HTML="$SCRIPT_DIR/key.html"
 KEY_AHUY_HTML="$SCRIPT_DIR/keyAHuy.html"
 KEY_SELL_HTML="$SCRIPT_DIR/keysell.html"
+KEY_NEW_HTML="$SCRIPT_DIR/keyNew.html"
+
+# Định nghĩa các file update (chứa thông tin version)
+UPDATE_GOC_HTML="$SCRIPT_DIR/update_goc.html"
+UPDATE_NEW_HTML="$SCRIPT_DIR/updateNew.html"
+UPDATE_AHUY_HTML="$SCRIPT_DIR/updateAHuy.html"
+UPDATE_SELL_HTML="$SCRIPT_DIR/updatesell.html"
+UPDATE_PACK_HTML="$SCRIPT_DIR/update_pack.html"
 
 if [ ! -f "$ENC_PY" ]; then
   echo "Không tìm thấy $ENC_PY" >&2
@@ -21,12 +31,27 @@ if [ ! -f "$ENC_PY" ]; then
 fi
 
 # Hiển thị menu chọn file
-echo "Chọn file cần cập nhật:"
+echo "============================================"
+echo "       CHỌN FILE CẦN CẬP NHẬT KEY"
+echo "============================================"
+echo "--- Các file KEY ---"
 echo "1) key.html"
 echo "2) keyAHuy.html"
 echo "3) keysell.html"
-echo "4) Tất cả các file"
-read -r -p "Chọn option (1-4): " FILE_CHOICE
+echo "4) keyNew.html"
+echo "5) Tất cả file key"
+echo ""
+echo "--- Các file UPDATE ---"
+echo "6) update_goc.html"
+echo "7) updateNew.html"
+echo "8) updateAHuy.html"
+echo "9) updatesell.html"
+echo "10) update_pack.html"
+echo "11) Tất cả file update"
+echo ""
+echo "12) Tất cả các file (key + update)"
+echo "============================================"
+read -r -p "Chọn option (1-12): " FILE_CHOICE
 
 # Xác định file(s) cần cập nhật
 declare -a TARGET_FILES
@@ -41,7 +66,31 @@ case "$FILE_CHOICE" in
     TARGET_FILES=("$KEY_SELL_HTML")
     ;;
   4)
-    TARGET_FILES=("$KEY_HTML" "$KEY_AHUY_HTML" "$KEY_SELL_HTML")
+    TARGET_FILES=("$KEY_NEW_HTML")
+    ;;
+  5)
+    TARGET_FILES=("$KEY_HTML" "$KEY_AHUY_HTML" "$KEY_SELL_HTML" "$KEY_NEW_HTML")
+    ;;
+  6)
+    TARGET_FILES=("$UPDATE_GOC_HTML")
+    ;;
+  7)
+    TARGET_FILES=("$UPDATE_NEW_HTML")
+    ;;
+  8)
+    TARGET_FILES=("$UPDATE_AHUY_HTML")
+    ;;
+  9)
+    TARGET_FILES=("$UPDATE_SELL_HTML")
+    ;;
+  10)
+    TARGET_FILES=("$UPDATE_PACK_HTML")
+    ;;
+  11)
+    TARGET_FILES=("$UPDATE_GOC_HTML" "$UPDATE_NEW_HTML" "$UPDATE_AHUY_HTML" "$UPDATE_SELL_HTML" "$UPDATE_PACK_HTML")
+    ;;
+  12)
+    TARGET_FILES=("$KEY_HTML" "$KEY_AHUY_HTML" "$KEY_SELL_HTML" "$KEY_NEW_HTML" "$UPDATE_GOC_HTML" "$UPDATE_NEW_HTML" "$UPDATE_AHUY_HTML" "$UPDATE_SELL_HTML" "$UPDATE_PACK_HTML")
     ;;
   *)
     echo "Lựa chọn không hợp lệ!" >&2
@@ -84,24 +133,45 @@ fi
 # Cập nhật từng file đã chọn
 for TARGET_FILE in "${TARGET_FILES[@]}"; do
   "$PYTHON_BIN" - "$TARGET_FILE" "$ENCRYPT_VAL" "$DECRYPT_CORE" << 'PYAPPEND'
-import json,sys
+import json,sys,os
 path=sys.argv[1]
 enc=sys.argv[2]
 dec=sys.argv[3]
+filename = os.path.basename(path)
+
 with open(path,'r',encoding='utf-8') as f:
     data=json.load(f)
-if not isinstance(data,dict) or 'key' not in data or not isinstance(data['key'],list):
+
+if not isinstance(data, dict):
     print(f'File {path} không đúng cấu trúc JSON mong đợi.', file=sys.stderr)
     sys.exit(1)
+
 # Trim an toàn trong Python trước khi ghép
 enc = enc.strip()
 dec = dec.strip()
-entry=f"{enc}|{dec}"
-data['key'].append(entry)
-with open(path,'w',encoding='utf-8') as f:
-    json.dump(data,f,ensure_ascii=False,indent=2)
-    f.write('\n')
-print(f'Đã cập nhật {path} với mục: {entry}')
+
+# Phân biệt file key và file update
+if 'key' in data and isinstance(data['key'], list):
+    # File key: thêm entry vào danh sách key
+    entry=f"{enc}|{dec}"
+    data['key'].append(entry)
+    with open(path,'w',encoding='utf-8') as f:
+        json.dump(data,f,ensure_ascii=False,indent=2)
+        f.write('\n')
+    print(f'Đã cập nhật {filename} với key mới: {entry[:50]}...')
+elif 'update' in data:
+    # File update: thêm key mới vào file
+    if 'key' not in data:
+        data['key'] = []
+    entry=f"{enc}|{dec}"
+    data['key'].append(entry)
+    with open(path,'w',encoding='utf-8') as f:
+        json.dump(data,f,ensure_ascii=False,indent=2)
+        f.write('\n')
+    print(f'Đã cập nhật {filename} với key mới: {entry[:50]}...')
+else:
+    print(f'File {path} không đúng cấu trúc JSON mong đợi.', file=sys.stderr)
+    sys.exit(1)
 PYAPPEND
 done
 
